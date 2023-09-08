@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>report.html</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    let visibleString = getQueryParameter('visible') || 'all';
+    visibleString = visibleString.toLowerCase();
+    const checkedItems = visibleString.split(',');
+
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++) {
+        filterItems[i].hidden = false;
+
+        if (visibleString != 'all') {
+            filterItems[i].checked = checkedItems.includes(filterItems[i].getAttribute('data-test-result'));
+            filterTable(filterItems[i]);
+        }
+    }
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>report.html</h1>
+    <p>Report generated on 07-Sep-2023 at 20:45:51 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.2.0</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "1.0.0", "pytest": "7.3.1"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Windows-10-10.0.19045-SP0</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"anyio": "4.0.0", "html": "3.2.0", "metadata": "2.0.4", "xdist": "3.2.1"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.11.2</td></tr></table>
+    <h2>Summary</h2>
+    <p>1 tests ran in 0.63 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">1 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">0 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_web_service.py::TestWebService::test_web_serice</td>
+          <td class="col-duration">0.57</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>[&#x27;Tecnología&#x27;]
+Respuesta recibida:{&quot;departments&quot;:[{&quot;name&quot;:&quot;Tecnología&quot;,&quot;categories&quot;:[{&quot;id&quot;:&quot;MLA1051&quot;,&quot;name&quot;:&quot;Celulares y Teléfonos&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/c/celulares-y-telefonos#menu=categories&quot;,&quot;children_categories&quot;:[{&quot;id&quot;:&quot;MLA1055&quot;,&quot;name&quot;:&quot;Celulares y Smartphones&quot;,&quot;permalink&quot;:&quot;https://listado.mercadolibre.com.ar/celulares-telefonos/celulares-smartphones/#menu=categories&quot;},{&quot;id&quot;:&quot;MLA3502&quot;,&quot;name&quot;:&quot;Accesorios para Celulares&quot;,&quot;permalink&quot;:&quot;https://celulares.mercadolibre.com.ar/accesorios/#menu=categories&quot;},{&quot;id&quot;:&quot;MLA3813&quot;,&quot;name&quot;:&quot;Repuestos de Celulares&quot;,&quot;permalink&quot;:&quot;https://celulares.mercadolibre.com.ar/repuestos/#menu=categories&quot;}]},{&quot;id&quot;:&quot;MLA1648&quot;,&quot;name&quot;:&quot;Computación&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/c/computacion#menu=categories&quot;,&quot;children_categories&quot;:[{&quot;id&quot;:&quot;MLA3794&quot;,&quot;name&quot;:&quot;Componentes de PC&quot;,&quot;permalink&quot;:&quot;https://computacion.mercadolibre.com.ar/componentes-pc/#menu=categories&quot;},{&quot;id&quot;:&quot;MLA2141&quot;,&quot;name&quot;:&quot;Impresión&quot;,&quot;permalink&quot;:&quot;https://computacion.mercadolibre.com.ar/impresion/#menu=categories&quot;},{&quot;id&quot;:&quot;MLA400950&quot;,&quot;name&quot;:&quot;Tablets y Accesorios&quot;,&quot;permalink&quot;:&quot;https://computacion.mercadolibre.com.ar/tablets-accesorios/tablets/#menu=categories&quot;},{&quot;id&quot;:&quot;MLA1649&quot;,&quot;name&quot;:&quot;PC&quot;,&quot;permalink&quot;:&quot;https://computacion.mercadolibre.com.ar/pc-escritorio/pc/#menu=categories&quot;},{&quot;id&quot;:&quot;MLA1700&quot;,&quot;name&quot;:&quot;Conectividad y Redes&quot;,&quot;permalink&quot;:&quot;https://computacion.mercadolibre.com.ar/conectividad-redes/#menu=categories&quot;},{&quot;id&quot;:&quot;MLA1656&quot;,&quot;name&quot;:&quot;Monitores y Accesorios&quot;,&quot;permalink&quot;:&quot;https://computacion.mercadolibre.com.ar/monitores/#menu=categories&quot;}]},{&quot;id&quot;:&quot;MLA1039&quot;,&quot;name&quot;:&quot;Cámaras y Accesorios&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/c/camaras-y-accesorios#menu=categories&quot;,&quot;children_categories&quot;:[{&quot;id&quot;:&quot;MLA1042&quot;,&quot;name&quot;:&quot;Cámaras Digitales&quot;,&quot;permalink&quot;:&quot;https://camaras-digitales.mercadolibre.com.ar/camaras/digitales/#menu=categories&quot;},{&quot;id&quot;:&quot;MLA1049&quot;,&quot;name&quot;:&quot;Accesorios para Cámaras&quot;,&quot;permalink&quot;:&quot;https://camaras-digitales.mercadolibre.com.ar/accesorios/#menu=categories&quot;},{&quot;id&quot;:&quot;MLA392132&quot;,&quot;name&quot;:&quot;Filmadoras y Cámaras de Acción&quot;,&quot;permalink&quot;:&quot;https://camaras-digitales.mercadolibre.com.ar/filmadoras-camaras-accion/#menu=categories&quot;}]},{&quot;id&quot;:&quot;MLA1000&quot;,&quot;name&quot;:&quot;Electrónica, Audio y Video&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/c/electronica-audio-y-video#menu=categories&quot;,&quot;children_categories&quot;:[{&quot;id&quot;:&quot;MLA409810&quot;,&quot;name&quot;:&quot;Audio&quot;,&quot;permalink&quot;:&quot;https://electronica.mercadolibre.com.ar/audio/#menu=categories&quot;},{&quot;id&quot;:&quot;MLA3690&quot;,&quot;name&quot;:&quot;Accesorios para Audio y Video&quot;,&quot;permalink&quot;:&quot;https://electronica.mercadolibre.com.ar/accesorios-audio-y-video/#menu=categories&quot;},{&quot;id&quot;:&quot;MLA11830&quot;,&quot;name&quot;:&quot;Componentes Electrónicos&quot;,&quot;permalink&quot;:&quot;https://electronica.mercadolibre.com.ar/componentes-electronicos/#menu=categories&quot;},{&quot;id&quot;:&quot;MLA352294&quot;,&quot;name&quot;:&quot;Drones y Accesorios&quot;,&quot;permalink&quot;:&quot;https://electronica.mercadolibre.com.ar/drones-accesorios/#menu=categories&quot;},{&quot;id&quot;:&quot;MLA1002&quot;,&quot;name&quot;:&quot;Televisores&quot;,&quot;permalink&quot;:&quot;https://televisores.mercadolibre.com.ar/televisores/#menu=categories&quot;}]},{&quot;id&quot;:&quot;MLA1144&quot;,&quot;name&quot;:&quot;Consolas y Videojuegos&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/c/consolas-y-videojuegos#menu=categories&quot;,&quot;children_categories&quot;:[{&quot;id&quot;:&quot;MLA373840&quot;,&quot;name&quot;:&quot;Videojuegos&quot;,&quot;permalink&quot;:&quot;https://videojuegos.mercadolibre.com.ar/videojuegos/#menu=categories&quot;},{&quot;id&quot;:&quot;MLA373769&quot;,&quot;name&quot;:&quot;Para PlayStation&quot;,&quot;permalink&quot;:&quot;https://videojuegos.mercadolibre.com.ar/accesorios-consolas-playstation/#menu=categories&quot;},{&quot;id&quot;:&quot;MLA373768&quot;,&quot;name&quot;:&quot;Para Nintendo&quot;,&quot;permalink&quot;:&quot;https://videojuegos.mercadolibre.com.ar/accesorios-consolas-nintendo/#menu=categories&quot;}]},{&quot;id&quot;:&quot;MLA1002&quot;,&quot;name&quot;:&quot;Televisores&quot;,&quot;permalink&quot;:&quot;https://televisores.mercadolibre.com.ar/televisores/#menu=categories&quot;,&quot;children_categories&quot;:[{&quot;id&quot;:&quot;MLA123858&quot;,&quot;permalink&quot;:&quot;#menu=categories&quot;},{&quot;id&quot;:&quot;MLA124820&quot;,&quot;permalink&quot;:&quot;#menu=categories&quot;},{&quot;id&quot;:&quot;MLA321526&quot;,&quot;permalink&quot;:&quot;#menu=categories&quot;},{&quot;id&quot;:&quot;MLA321622&quot;,&quot;permalink&quot;:&quot;#menu=categories&quot;}]}]}],&quot;landings&quot;:[{&quot;label&quot;:&quot;Hogar y Muebles&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/c/hogar-muebles-y-jardin#menu=categories&quot;},{&quot;label&quot;:&quot;Electrodomésticos&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/c/electrodomesticos-y-aires-ac#menu=categories&quot;},{&quot;label&quot;:&quot;Herramientas&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/c/herramientas#menu=categories&quot;},{&quot;label&quot;:&quot;Construcción&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/c/construccion#menu=categories&quot;},{&quot;label&quot;:&quot;Deportes y Fitness&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/c/deportes-y-fitness#menu=categories&quot;},{&quot;label&quot;:&quot;Accesorios para Vehículos&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/c/accesorios-para-vehiculos#menu=categories&quot;},{&quot;label&quot;:&quot;Moda&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/c/ropa-y-accesorios#menu=categories&quot;},{&quot;label&quot;:&quot;Juegos y Juguetes&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/c/juegos-y-juguetes#menu=categories&quot;},{&quot;label&quot;:&quot;Bebés&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/c/bebes#menu=categories&quot;},{&quot;label&quot;:&quot;Belleza y Cuidado Personal&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/c/belleza-y-cuidado-personal#menu=categories&quot;},{&quot;label&quot;:&quot;Salud y Equipamiento Médico&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/c/salud-y-equipamiento-medico#menu=categories&quot;},{&quot;label&quot;:&quot;Industrias y Oficinas&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/c/industrias-y-oficinas#menu=categories&quot;},{&quot;label&quot;:&quot;Agro&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/c/agro#menu=categories&quot;},{&quot;label&quot;:&quot;Productos Sustentables&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/productos-sustentables#menu=categories&quot;},{&quot;label&quot;:&quot;Servicios&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/c/servicios#menu=categories&quot;},{&quot;label&quot;:&quot;Más vendidos&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/mas-vendidos#menu=categories&quot;},{&quot;label&quot;:&quot;Tiendas oficiales&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/tiendas-oficiales#menu=categories&quot;}],&quot;more_categories&quot;:{&quot;label&quot;:&quot;Ver más categorías&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/categorias#menu=categories&quot;},&quot;high_priority&quot;:[{&quot;label&quot;:&quot;Vehículos&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/vehiculos/#menu=categories&quot;},{&quot;label&quot;:&quot;Inmuebles&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/inmuebles/#menu=categories&quot;},{&quot;label&quot;:&quot;Supermercado&quot;,&quot;permalink&quot;:&quot;https://www.mercadolibre.com.ar/ofertas/supermercado#menu=categories&quot;}]}
+El/Los departamento/s que tiene Merdacdo libre es/son :[&#x27;Tecnología&#x27;]
+<br/></div></td></tr></tbody></table></body></html>

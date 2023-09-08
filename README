@@ -1,0 +1,11 @@
+Para el uso adecuado de los test se necesita :
+Tener insalado pycharm, python, pytest, selenium.
+Ademas instalar las librerias que se indican en el archivo "requirements.txt"
+Crear 3 Ejecuciones de pyTest:
+(Del lado izquierdo del boton run ralizar click izquiero, click en editar configuracion,click en simbolo +
+ del lado superior izquieor de la ventana emerjente,elegir la opcion de PyTest)(uno por archivo test)
+ colocar en el campo "Additionals Arguments"  "-m login" para el test de login
+                                              "-m shop" para el test de shopping_cart
+                                              "-m webService" para el test de shopping_cart
+
+Con ello ya podremos ejecutar los distintos test.
